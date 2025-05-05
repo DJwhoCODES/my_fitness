@@ -6,98 +6,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Health Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="/style.css" />
+    <style>
+        .today-row {
+            background-color: rgba(13, 110, 253, 0.2);
+            font-weight: bold;
+        }
+
+        .table-responsive {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        body {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+
+        .table-dark {
+            background-color: #2c3034;
+        }
+
+        hr {
+            border-color: #495057;
+        }
+    </style>
 </head>
 
-<body class="bg-dark text-light">
+<body>
     <div class="container py-4">
         <h1 class="mb-4">📝 Daily Health Tracker</h1>
 
         <!-- Form Section -->
-        <form action="/update" method="POST" class="mb-4">
+        <form action="/" method="POST" class="mb-4">
             <h4>📥 Daily Inputs</h4>
-            <input type="number" name="weight" placeholder="Weight (kg)" step="0.01" class="form-control mb-2" />
+            <input type="number" name="weight" placeholder="Weight (kg)" step="0.01"
+                class="form-control mb-2 bg-dark text-light" />
             <input type="number" name="waterIntake" placeholder="Water Intake (ml)" step="0.01"
-                class="form-control mb-2" />
+                class="form-control mb-2 bg-dark text-light" />
 
             <hr />
 
             <h4>🏋️ Add Exercise</h4>
-            <input type="text" name="exerciseName" placeholder="Exercise Name" class="form-control mb-2" />
+            <input type="text" name="exerciseName" placeholder="Exercise Name"
+                class="form-control mb-2 bg-dark text-light" />
             <input type="number" name="exerciseCalories" placeholder="Calories Burnt" step="0.01"
-                class="form-control mb-2" />
+                class="form-control mb-2 bg-dark text-light" />
 
             <hr />
 
             <h4>🍽️ Add Food Intake</h4>
-            <input type="text" name="foodName" placeholder="Food Name" class="form-control mb-2" />
+            <input type="text" name="foodName" placeholder="Food Name" class="form-control mb-2 bg-dark text-light" />
             <input type="number" name="foodWeight" placeholder="Food Weight (g)" step="0.01"
-                class="form-control mb-2" />
-            <input type="number" name="foodCalories" placeholder="Calories" step="0.01" class="form-control mb-2" />
-            <input type="number" name="foodProtein" placeholder="Protein (g)" step="0.01" class="form-control mb-2" />
+                class="form-control mb-2 bg-dark text-light" />
+            <input type="number" name="foodCalories" placeholder="Calories" step="0.01"
+                class="form-control mb-2 bg-dark text-light" />
+            <input type="number" name="foodProtein" placeholder="Protein (g)" step="0.01"
+                class="form-control mb-2 bg-dark text-light" />
 
             <button class="btn btn-primary mt-3">Submit</button>
         </form>
 
-        <!-- Single Unified Table -->
-        <h4 class="mt-5">📊 Daily Summary</h4>
-        <table class="table table-dark table-bordered text-light">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Weight (kg)</th>
-                    <th>Maintenance Cal</th>
-                    <th>Exercises (🔥)</th>
-                    <th>Food Intake 🍽️</th>
-                    <th>Water (ml)</th>
-                    <th>Calorie Deficit</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>
-                        <%= entry.date %>
-                    </td>
-                    <td>
-                        <%= entry.weight || '—' %>
-                    </td>
-                    <td>
-                        <%= maintenance %>
-                    </td>
-                    <td>
-                        <% if (entry.exercises.length===0) { %> —
-                            <% } else { %>
-                                <% entry.exercises.forEach(ex=> { %>
-                                    <div>
-                                        <%= ex.name %> - <%= ex.calories.toFixed(2) %> kcal
-                                    </div>
-                                    <% }) %>
-                                        <% } %>
-                    </td>
-                    <td>
-                        <% if (entry.calorieIntake.length===0) { %> —
-                            <% } else { %>
-                                <% entry.calorieIntake.forEach(f=> { %>
-                                    <div>
-                                        <%= f.name %> - <%= f.calories %> kcal
-                                                <% if (f.protein) { %> / <%= f.protein %>g protein <% } %>
-                                    </div>
-                                    <% }) %>
-                                        <hr class="bg-secondary" />
-                                        <strong>Total:</strong>
-                                        <%= totalCalories %> kcal /
-                                            <%= totalProtein %>g protein
+        <!-- Unified Table for All Entries -->
+        <h4 class="mt-5">📊 Historical Data</h4>
+        <div class="table-responsive">
+            <table class="table table-dark table-bordered">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Weight</th>
+                        <th>Maintenance</th>
+                        <th>Exercises (Total: <%= allEntries.reduce((sum, e)=> sum + e.totalCaloriesBurnt, 0).toFixed(0)
+                                %> kcal)</th>
+                        <th>Food Intake</th>
+                        <th>Water</th>
+                        <th>Deficit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% allEntries.forEach(entry=> { %>
+                        <tr class="<%= entry.date === currentDate ? 'today-row' : '' %>">
+                            <td>
+                                <%= entry.date %>
+                            </td>
+                            <td>
+                                <%= entry.weight ? entry.weight.toFixed(1) + ' kg' : '—' %>
+                            </td>
+                            <td>
+                                <%= entry.maintenance %> kcal
+                            </td>
+                            <td>
+                                <% if (entry.exercises.length===0) { %> —
+                                    <% } else { %>
+                                        <% entry.exercises.forEach(ex=> { %>
+                                            <div>
+                                                <%= ex.name %>: <%= ex.calories.toFixed(0) %> kcal
+                                            </div>
+                                            <% }) %>
+                                                <hr class="my-1 bg-secondary" />
+                                                <strong>Total: <%= entry.totalCaloriesBurnt.toFixed(0) %> kcal</strong>
                                                 <% } %>
-                    </td>
-                    <td>
-                        <%= entry.waterIntake || 0 %>
-                    </td>
-                    <td>
-                        <%= deficit %>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                            </td>
+                            <td>
+                                <% if (entry.calorieIntake.length===0) { %> —
+                                    <% } else { %>
+                                        <% entry.calorieIntake.forEach(f=> { %>
+                                            <div>
+                                                <%= f.name %>: <%= f.calories.toFixed(0) %> kcal
+                                                        <% if (f.protein) { %>(<%= f.protein.toFixed(0) %>g protein)<% }
+                                                                    %>
+                                            </div>
+                                            <% }) %>
+                                                <hr class="my-1 bg-secondary" />
+                                                <strong>
+                                                    Total: <%= entry.totalCalories.toFixed(0) %> kcal /
+                                                        <%= entry.totalProtein.toFixed(0) %>g protein
+                                                </strong>
+                                                <% } %>
+                            </td>
+                            <td>
+                                <%= entry.waterIntake ? entry.waterIntake + ' ml' : '—' %>
+                            </td>
+                            <td>
+                                <%= entry.deficit %> kcal
+                            </td>
+                        </tr>
+                        <% }) %>
+                </tbody>
+            </table>
+        </div>
     </div>
 </body>
 

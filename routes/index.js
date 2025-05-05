@@ -10,78 +10,102 @@ function calculateBMR(weight) {
     return 10 * weight + 6.25 * HEIGHT - 5 * AGE + 5;
 }
 
-router.get('/', async (req, res) => {
-    const ISTDate = new Date().toLocaleDateString("en-IN");
+function getISTDateInfo() {
+    const now = new Date();
+    const istOffset = 330 * 60 * 1000; // 5:30 hours in milliseconds
+    const istTime = new Date(now.getTime() + istOffset);
+    return istTime.toISOString().split('T')[0]; // YYYY-MM-DD format
+}
 
-    let today = await Entry.findOne({ date: ISTDate });
-    if (!today) today = await Entry.create({ date: ISTDate });
+router.route('/')
+    .get(async (req, res) => {
+        try {
+            const currentISTDate = getISTDateInfo();
+            let todayEntry = await Entry.findOne({ date: currentISTDate });
 
-    const totalCalories = today.calorieIntake.reduce((sum, f) => sum + (f.calories || 0), 0);
-    const totalProtein = today.calorieIntake.reduce((sum, f) => sum + (f.protein || 0), 0);
-    const totalCaloriesBurnt = today.exercises.reduce((sum, e) => sum + (e.calories || 0), 0);
+            if (!todayEntry) {
+                todayEntry = await Entry.create({ date: currentISTDate });
+            }
 
-    const BMR = today.weight ? calculateBMR(today.weight) : 0;
-    const maintenance = BMR * ACTIVITY_FACTOR;
-    const deficit = maintenance - (totalCalories - totalCaloriesBurnt);
+            // Get ALL entries sorted by date (newest first)
+            const allEntries = await Entry.find({}).sort({ date: -1 });
 
-    res.render('index', {
-        entry: today,
-        maintenance: Math.round(maintenance),
-        totalCalories: totalCalories.toFixed(2),
-        totalProtein: totalProtein.toFixed(2),
-        totalCaloriesBurnt: totalCaloriesBurnt.toFixed(2),
-        deficit: Math.round(deficit)
+            // Calculate totals for each entry
+            const entriesWithTotals = allEntries.map(entry => {
+                const totalCalories = entry.calorieIntake.reduce((sum, f) => sum + (f.calories || 0), 0);
+                const totalProtein = entry.calorieIntake.reduce((sum, f) => sum + (f.protein || 0), 0);
+                const totalCaloriesBurnt = entry.exercises.reduce((sum, e) => sum + (e.calories || 0), 0);
+                const BMR = entry.weight ? calculateBMR(entry.weight) : 0;
+                const maintenance = BMR * ACTIVITY_FACTOR;
+                const deficit = maintenance - (totalCalories - totalCaloriesBurnt);
+
+                return {
+                    ...entry.toObject(),
+                    totalCalories,
+                    totalProtein,
+                    totalCaloriesBurnt,
+                    maintenance: Math.round(maintenance),
+                    deficit: Math.round(deficit)
+                };
+            });
+
+            res.render('index', {
+                allEntries: entriesWithTotals,
+                currentDate: currentISTDate
+            });
+
+        } catch (err) {
+            console.error(err);
+            res.status(500).send('Server Error');
+        }
+    })
+    .post(async (req, res) => {
+        try {
+            const currentISTDate = getISTDateInfo();
+            let entry = await Entry.findOne({ date: currentISTDate });
+
+            if (!entry) {
+                entry = await Entry.create({ date: currentISTDate });
+            }
+
+            // Process form data (same as before)
+            const {
+                weight,
+                waterIntake,
+                exerciseName,
+                exerciseCalories,
+                foodName,
+                foodWeight,
+                foodCalories,
+                foodProtein
+            } = req.body;
+
+            if (weight && !isNaN(weight)) entry.weight = parseFloat(weight);
+            if (waterIntake && !isNaN(waterIntake)) entry.waterIntake = (entry.waterIntake || 0) + parseFloat(waterIntake);
+            if (exerciseName && exerciseCalories) {
+                entry.exercises.push({
+                    name: exerciseName,
+                    calories: parseFloat(exerciseCalories),
+                    timestamp: new Date()
+                });
+            }
+            if (foodName || foodWeight || foodCalories || foodProtein) {
+                entry.calorieIntake.push({
+                    name: foodName || '',
+                    weight: parseFloat(foodWeight) || 0,
+                    calories: parseFloat(foodCalories) || 0,
+                    protein: parseFloat(foodProtein) || 0,
+                    timestamp: new Date()
+                });
+            }
+
+            await entry.save();
+            res.redirect('/');
+
+        } catch (err) {
+            console.error(err);
+            res.status(500).send('Server Error');
+        }
     });
-});
-
-router.post('/update', async (req, res) => {
-    const ISTDate = new Date().toLocaleDateString("en-IN");
-    let today = await Entry.findOne({ date: ISTDate });
-
-    if (!today) today = await Entry.create({ date: ISTDate });
-
-    const {
-        weight,
-        waterIntake,
-        exerciseName,
-        exerciseCalories,
-        foodName,
-        foodWeight,
-        foodCalories,
-        foodProtein
-    } = req.body;
-
-    // Update weight
-    if (weight && !isNaN(weight)) {
-        today.weight = parseFloat(weight);
-    }
-
-    // Update water intake
-    if (waterIntake && !isNaN(waterIntake)) {
-        const intake = parseFloat(waterIntake);
-        today.waterIntake = (today.waterIntake || 0) + intake;
-    }
-
-    // Add exercise
-    if (exerciseName && exerciseCalories && !isNaN(exerciseCalories)) {
-        today.exercises.push({
-            name: exerciseName,
-            calories: parseFloat(exerciseCalories)
-        });
-    }
-
-    // Add food intake
-    if (foodName || foodWeight || foodCalories || foodProtein) {
-        today.calorieIntake.push({
-            name: foodName || '',
-            weight: foodWeight && !isNaN(foodWeight) ? parseFloat(foodWeight) : 0,
-            calories: foodCalories && !isNaN(foodCalories) ? parseFloat(foodCalories) : 0,
-            protein: foodProtein && !isNaN(foodProtein) ? parseFloat(foodProtein) : 0
-        });
-    }
-
-    await today.save();
-    res.redirect('/');
-});
 
 module.exports = router;
